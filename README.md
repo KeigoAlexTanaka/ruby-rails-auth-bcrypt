@@ -1,12 +1,30 @@
 # Rails Authentication
 
-This tutorial is for adding authentication to a vanilla Ruby on Rails application using `bcrypt` and `has_secure_password`.
+### Objectives
+*After this lesson, students will be able to:*
 
-The point of authentication is to ensure that the user is who they say they are. The standard way of managing this is through logging in your user using a sign-in form. Once the user is logged in, you keep track of them using the session until they log out.
+- Understand how to set and retrieve data from `session`
+- Know how to set and check passwords using `BCrypt`
+- Understand how to keep track of a `current_user`
+  - `sign_in`/`sign_out`, `ensure_signed_in`/`ensure_signed_out`
+- Be able to create a Rails app with Auth without using [`Devise`](https://github.com/plataformatec/devise)
+  - Not from memory, but from following along with an example
+
+  
+### Preparation
+*Before this lesson, students should:*
+
+- Be able to make a Rails app without auth
+
+---
+
+This tutorial is for adding authentication to a vanilla Ruby on Rails application using [`bcrypt`](https://github.com/codahale/bcrypt-ruby) and `has_secure_password`.
+
+The point of authentication is to ensure that the user is who they say they are. The standard way of managing this is through registering your user using a sign-up form. Once the registered user is logged in, you keep track of them using a session until they log out.
 
 User Authentication allows us to restrict access to a portion of the application so that only users who log in with a valid username and password can have access.
 
-### [Step 1] :: Create a new Rails application
+### Create a new Rails application
 
 To create a new Rails app, we use the `rails new` command. This sets us up with our skeleton Rails app. In the Terminal, in the directory where you want to create a project, generate a new Rails project and cd into it:
 
@@ -17,7 +35,7 @@ $ cd my-rails-auth-project
 # -T means without Test::Unit (maybe you prefer to use rspec instead)
 ```
 
-### [Step 2] :: Setup the database
+### Setup the database
 Set up an empty database:
 
 ```
@@ -43,7 +61,7 @@ $ rails server
 
 ## USERS
 
-### [Step 3] :: Generate User model 
+### Generate User model 
 Create a User model with `name` and `email` attributes as well as the optional string parameters. **Remember:** in Rails, models are singlular and capitalized. Controllers and routes are plural and lowercase.
 
 ```
@@ -160,7 +178,7 @@ Another way to update records is using `update_attributes`:
 => "Dennis Layne"
 ```
 
-### [Step 4] :: Validations
+### Validations
 
 At this point, any string we decide to type into the name and email fields is valid. Active Record allows us to impose constraints using validations. Some of the most common validations include: _presence, length, and uniqueness_.
 
@@ -227,7 +245,7 @@ The users table in the `db/schema.rb` file now includes the following line:
   end
 ```
 
-### [Step 5] :: Add Dependencies
+### Add Dependencies
 
 In the Gemfile, uncomment bcrypt:
 
@@ -242,7 +260,7 @@ $ bundle install
 
 Then, restart your server.
 
-### [Step 6] :: Passwords
+### Passwords
 
 Rails has a method called `has_secure_password` which you include in your User model and it  adds a lot of the functionality. The only requirement for `has_secure_password` is for the corresponding model to have an attribute called `password_digest`.
 
@@ -305,7 +323,7 @@ Now in our rails console, we can set a password and check if it matches:
 ```
 _Note:_ Saving the record returns the encrypted password digest and NOT the password ('epiphany')
 
-Validate a user given the name and password:
+Authenticate a user given the name and password:
 
 ```
 class User < ApplicationRecord
@@ -313,6 +331,7 @@ class User < ApplicationRecord
     validates :email, presence: true, length: { maximum: 255 }, uniqueness: true
     
     has_secure_password
+    validates :password, presence: true, length: { minimum: 6 }
     
 	def self.find_from_credentials(email, password)
 		user = find_by(email: email)
@@ -346,7 +365,7 @@ Next, test an email address and password that works and one that doesn't:
 
 ---
 
-### [Step 3] :: Create Users Resource
+### Create Users Resource
 In the `config/routes.rb` file, add the following resources:
 
 ```
@@ -363,11 +382,11 @@ then, run `rails routes` in Terminal:
 
 ---
 
-### [Step ] :: Create users controller
+### Create users controller
 Create a users controller:
 
 ```
-$ rails g controller users name email
+$ rails g controller users new create
 ```
 and add the new (to render the signup form) and create (for receiving the form and creating a user with the forms' parameters) actions:
 
@@ -387,10 +406,10 @@ end
 
 Now create the view where we place the signup form. _Remember:_ view files are placed inside a folder with the same name of the controller and named for the actions they render.
 
-```
+```ruby
 # app/views/users/new.html.erb
 
-<h1>Sign Up</h1>
+<h1>Sign Up / Register</h1>
 
 <%= form_for :user do |f| %>
 
@@ -405,21 +424,24 @@ Now create the view where we place the signup form. _Remember:_ view files are p
 
 Add logic to the create action and add the private user_params method to sanitize the input from the form.
 
-```
+```ruby
 # app/controllers/users_controller.rb
 
 class UsersController < ApplicationController
 
     def new
+       @user = User.new
+    	render :new
     end
 
     def create
-		user = User.new(user_params)
+		@user = User.new(user_params)
 		if user.save
-			session[:user_id] = user.id
-			redirect_to '/'
+			sign_in(@user)
+	      flash[:notice] = 'You are signed in!'
+	      redirect_to users_path
 		else
-			redirect_to '/signup'
+			redirect_to '/users/new'
 		end
     end  
     
@@ -434,13 +456,13 @@ end
 ---
 ## SESSIONS
 
-With Rails can easily get access to the user's session with the [session object](). We can reference session inside of any controller. It behaves like a hash which means we can easily set and retrieve serialized data on it.
+With Rails the user can easily get access to their session with the [session object](). We can reference session inside of any controller. It behaves like a hash which means we can easily set and retrieve serialized data on it.
 
-### Singing in
+### Sign-in
 
-Let's define of ApplicationController#sign_in so that we can sign in a user from any where in the app. Assuming we have a session_token column on the users table, let's set a token on the session to be a random string and set that same string as the session_token on the user.
+Let's define ApplicationController#sign_in so that we can sign in a user from any where in the app. Assuming we have a session_token column on the users table, let's set a token on the session to be a random string and set that same string as the session_token on the user.
 
-```
+```ruby
 class ApplicationController < ActionController::Base
   # ...
   def sign_in(user)
@@ -543,8 +565,19 @@ def ensure_signed_in
     redirect_to :root
 end
 ```
+Then, in the `UsersController ` we can call our method with [before_action](https://apidock.com/rails/v4.0.2/AbstractController/Callbacks/ClassMethods/before_action):
 
-### Singing out
+```
+class UsersController < ApplicationController
+
+  before_action :ensure_signed_in, only: [:show, :index]
+  
+  ...
+end
+```
+Now the client will be redirected if they are not signed in when hitting any route inside the `UsersController`.
+
+### Signing out
 
 When we are ready to sign out a user, we can simply delete the token from the session and remove the token from the database.
 
@@ -555,6 +588,12 @@ class ApplicationController < ActionController::Base
     session.delete(:session_token)
     current_user.update_attribute(:session_token, nil)
   end
+```
+
+To sign out we can add a log-out button to the app:
+
+```
+<%= button_to 'Log out', session_path, method: :delete %>
 ```
 
 In the SessionsController, define the destroy action:
@@ -569,10 +608,9 @@ In the SessionsController, define the destroy action:
   end
 ```
 
-
 ### Ensuring user is logged out
 
-
+If there are routes you need to be signed out in order to visit:
 
 ```
   def ensure_signed_out
@@ -582,5 +620,109 @@ In the SessionsController, define the destroy action:
   end
 ```
 
+For example, let's assume you need to be signed out to create a new user. We can hit our ensure_signed_out method:
+
+```
+class UsersController < ApplicationController
+
+  before_action :ensure_signed_out, only: [:new, :create]
+
+  ...
+
+```
 
 ### Using current_user
+
+Always assume you will have malicious users. Just because you don't have a link to something doesn't mean a user can't hit that action. Keep this in mind when writing your controllers.
+
+For example, assume a User has_many :posts and a Post belongs_to :user. If we only want to show a Post to the user it belongs to, our controller should not look like this:
+
+```
+class PostsController < ApplicationController
+  ...
+  def show
+    @post = Post.find(params[:id])
+  end
+```
+
+This would allow any user to see any Post. Instead, do something like this:
+
+```
+class PostsController < ApplicationController
+  ...
+  def show
+    @post = current_user.posts.find(params[:id])
+  end
+```
+
+This will ensure you are only retrieving a Post that belongs to the current_user
+
+### Using current_user in views
+
+If you want to reference `current_user` in the views, use the [`helper_method`](https://apidock.com/rails/ActionController/Helpers/ClassMethods/helper_method) method:
+
+```erb
+class ApplicationController < ActionController::Base
+  ...
+  helper_method :current_user
+  ...
+```
+
+Then in a view you can do something like:
+
+```erb
+<% if current_user %>
+  Hi, <%= current_user.name %>
+<% end %>
+```
+
+## Important routes
+
+These are important auth-related routes
+
+| Route | Method | Controller | Use |
+|---|---|---|---|
+| `/session/new` | `GET` | SessionsController | Renders log in form |
+| `/session` | `POST` | SessionsController | Logs in user ("creates" a session)|
+| `/session` | `DELETE` | SessionsController | Logs out user ("deletes" a session) |
+| `/users/new` | `GET` | UsersController | Renders new user form |
+| `/users` | `POST` | UsersController | Creates a user |
+
+## Important methods
+
+All of these methods are defined in `ApplicationController` (thus accessible by any controller)
+
+| Method | Use |
+| --- | --- |
+| `current_user` | Current signed in user. `nil` if not signed in |
+| `sign_in(user)` | Signs in a given `user` (adds session token) |
+| `sign_out` | Signs out `current_user` (removes session token) |
+| `ensure_signed_in` | Redirect unless user is signed in |
+| `ensure_signed_out` | Redirect unless user is signed out |
+
+## LAB
+
+Let's continue building this thing:
+
+> Note: Following these steps on your own may require brain-power. You cannot just copy and paste.
+
+* `rails new MyFirstRailsAuthApp --database=postgresql`
+* Create a `User` model: `rails g model User`
+  - `username` (with index), `session_token` (with index), `password_digest`
+* `rails db:create`, `rails db:migrate`
+* Add `User` `username` and `password` validations
+* Define `sign_in`/`sign_out`, `current_user` methods
+* Define `ensure_signed_in`/`ensure_signed_out` methods
+* Create a controller: `rails g controller users`
+  - `index` (new), `new` (view), `create`, `show` (view)
+  - `resources :users, only: [:new, :create, :index, :show]`
+* Render `flash` messages in `application.html.erb`
+* Create a controller: `rails g controller sessions`
+  - `new` (view), `create`, `destroy`
+  - `resource :session, only: [:new, :create, :destroy]`
+* Create a `Post` model: `rails g model Post`
+  - `name`, `description`, `user_id` (with index)
+* Add `Post`-`User` associations
+* `rails g controller posts`
+  - `new`, `create`, `index`, `show`, `destroy`, `edit`, `update`
+  - `resources :posts`
