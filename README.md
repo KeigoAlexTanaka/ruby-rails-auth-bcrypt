@@ -41,6 +41,8 @@ Start the server and open up the project in the browser, `localhost:3000`:
 $ rails server
 ```
 
+## USERS
+
 ### [Step 3] :: Generate User model 
 Create a User model with `name` and `email` attributes as well as the optional string parameters. **Remember:** in Rails, models are singlular and capitalized. Controllers and routes are plural and lowercase.
 
@@ -312,7 +314,11 @@ class User < ApplicationRecord
     
     has_secure_password
     
-    def 
+	def self.find_from_credentials(email, password)
+		user = find_by(email: email)
+		return nil unless user
+		user if BCrypt::Password.new(user.password_digest).is_password?(password)
+	end
 end
 ```
 Now, find the user record by the email address:
@@ -322,10 +328,43 @@ Now, find the user record by the email address:
 => #<User id: 3, name: "Celeste Layne", email: "celeste.layne@hotmail.com", created_at: "2019-02-22 00:09:44", updated_at: "2019-02-22 00:09:44", password_digest: "$2a$10$oulAW4mTmy4sOmLaKRdsz.rglfMyQBrUeSq4C1ZBwU5...">
 ```
 
+Next, test an email address and password that works and one that doesn't:
+
+```
+# this pair works
+>> User.find_from_credentials('celeste.layne@hotmail.com', 'epiphany')
+=> #<User id: 4, name: "Celeste Layne", email: "celeste.layne@hotmail.com", created_at: "2019-02-22 00:52:05", updated_at: "2019-02-22 00:52:05", password_digest: "$2a$10$ivsPxtrCMdvUxxFRik9YbexHHcHdNNPxsYB2gohzduH...">
+
+# this email is incorrect
+>> User.find_from_credentials('celeste.layne@gmail.com', 'epiphany')
+=> nil
+
+# this password is incorrect
+>> User.find_from_credentials('celeste.layne@hotmail.com', 'bananas')
+=> nil
+```
+
 ---
 
-### [Step ] :: Create users controllers
-Create a users controller with index, new, create and show:
+### [Step 3] :: Create Users Resource
+In the `config/routes.rb` file, add the following resources:
+
+```
+$ resources :users, only: [:new, :create, :index, :show]
+```
+then, run `rails routes` in Terminal:
+
+| Prefix    | Verb   | URI Pattern | Controller#Action | Used for |
+|-----------|--------|-------------|-------------------|------------------------------------|
+| users     | GET    | /users      | users#index       | display a list of all users
+|           | POST   | /users      | users#create      | create a new user, '/users'
+| new_user  | GET    | /users/new  | users#new         | return an HTML form for creating a new user, '/signup'
+| user      | GET    | /users/:id  | users#show        | display a specific user
+
+---
+
+### [Step ] :: Create users controller
+Create a users controller:
 
 ```
 $ rails g controller users name email
@@ -353,7 +392,7 @@ Now create the view where we place the signup form. _Remember:_ view files are p
 
 <h1>Sign Up</h1>
 
-<%= form_for :user, url: '/users' do |f| %>
+<%= form_for :user do |f| %>
 
   Name: <%= f.text_field :name %>
   Email: <%= f.text_field :email %>
@@ -392,31 +431,156 @@ class UsersController < ApplicationController
 
 end
 ```
+---
+## SESSIONS
 
-### [Step 3] :: Create Users Resource
-In the `config/routes.rb` file, add the following resources:
+With Rails can easily get access to the user's session with the [session object](). We can reference session inside of any controller. It behaves like a hash which means we can easily set and retrieve serialized data on it.
+
+### Singing in
+
+Let's define of ApplicationController#sign_in so that we can sign in a user from any where in the app. Assuming we have a session_token column on the users table, let's set a token on the session to be a random string and set that same string as the session_token on the user.
 
 ```
-$ resources :users, only: [:new, :create, :index, :show]
+class ApplicationController < ActionController::Base
+  # ...
+  def sign_in(user)
+    token = SecureRandom.urlsafe_base64 # random 22-char string
+    session[:session_token] = token
+    user.update_attribute(:session_token, token)
+  end
+```
+
+### Create Sessions Resource
+In the `config/routes.rb` file, lets add actions for signing in and logging out:
+
+```
+$ resource :session, only: [:new, :create, :destroy]
 ```
 then, run `rails routes` in Terminal:
 
-| Prefix    | Verb   | URI Pattern | Controller#Action | Used for |
-|-----------|--------|-------------|-------------------|------------------------------------|
-| users     | GET    | /users      | users#index       | display a list of all users
-|           | POST   | /users      | users#create      | create a new user
-| new_user  | GET    | /users/new  | users#new         | return an HTML form for creating a new user
-| edit_user | GET    | /users/:id  | users#edit        | return an HTML form for editing a user
-| user      | GET    | /users/:id  | users#show        | display a specific user
-|           | PATCH  | /users/:id  | users#update      | update a specific user
-|           | PUT    | /users/:id  | users#update      | update a specific user
-|           | DELETE | /users/:id  | users#destroy     | delete a specific user
+| Prefix    | Verb   | URI Pattern | Controller#Action | Alias
+|-----------|--------|-------------|-------------------|---------------|
+|           | POST   | /session      | sessions#create      | '/login'
+| new_session  | GET    | /session/new  | sessions#new         | '/login'
+| session      | DELETE    | /session  | sessions#destroy     | '/logout'
 
+---
 
-### [Step 8] :: Sessions!!!
+### Create sessions controller
 
-Create a sessions controller. This is where we create (aka login) and destroy (aka logout) sessions.
+Create a sessions controller. This is where we create (login) and destroy (logout) sessions.
 
 ```
-$ rails g sessions users name email
+$ rails g controller sessions name email
 ```
+
+Now, inside the SessionsController we will define the `new` and `create` methods:
+
+```
+# app/controllers/sessions_controller.rb
+
+class SessionsController < ApplicationController
+
+	def new
+		@user = User.new
+		render :new
+   end
+
+   def create
+		user = params[:user][:email]
+		user = params[:user][:password]
+		
+		# using the find_from_credentials method from the User model
+		user = User.find_from_credentials(email, password)
+		
+		if user.save
+			session[:user_id] = user.id
+			flash[:notice] = "Hello, #{email}! You are now signed in."
+			redirect_to '/'
+		else
+			flash[:error] = "email or password incorrect"
+			@user = User.new(email: email)
+			render :new
+		end
+   end  
+    
+   private
+    
+   def user_params
+  		params.require(:user).permit(:name, :email, :password)
+	end
+
+end
+```
+
+### Finding the current user
+
+We define the `current user` method in the ApplicationController. We should probably **cache** current_user so that we don't have to do a query every time we call current_user.
+
+```
+class ApplicationController < ActionController::Base
+  ...
+  def current_user
+  	 # if @current_user is nil then call find_current_user method
+  	 # and assign it to the @current_user
+  	 # else don't have to call the find_current_user method 
+    @current_user ||= find_current_user
+  end
+  
+  def find_current_user
+    token = session[:session_token]
+    token && User.find_by(session_token: token)
+  end
+```
+
+### Ensuring user is signed in
+If we want to ensure a user is signed in before visiting a page we can define a method in our `ApplicationController`.
+
+```
+def ensure_signed_in
+    return if current_user
+    flash[:error] = 'you must be signed in to see this'
+    redirect_to :root
+end
+```
+
+### Singing out
+
+When we are ready to sign out a user, we can simply delete the token from the session and remove the token from the database.
+
+```
+class ApplicationController < ActionController::Base
+  ...
+  def sign_out
+    session.delete(:session_token)
+    current_user.update_attribute(:session_token, nil)
+  end
+```
+
+In the SessionsController, define the destroy action:
+
+```
+  def destroy
+  	 # call the sign_out method defined in the ApplicationController
+    sign_out
+    flash[:notice] = 'You signed out!'
+    # redirects to the login form
+    redirect_to new_session_path
+  end
+```
+
+
+### Ensuring user is logged out
+
+
+
+```
+  def ensure_signed_out
+    return unless current_user
+    flash[:error] = 'you are already signed in'
+    redirect_to users_path
+  end
+```
+
+
+### Using current_user
