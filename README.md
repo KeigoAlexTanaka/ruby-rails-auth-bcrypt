@@ -3,11 +3,9 @@
 ### Objectives
 *After this lesson, students will be able to:*
 
-- Understand how to set and retrieve data from `session`
+- Understand how to set and retrieve data using `jwt`
 - Know how to set and check passwords using `BCrypt`
-- Understand how to keep track of a `current_user`
-  - `sign_in`/`sign_out`, `ensure_signed_in`/`ensure_signed_out`
-- Be able to create a Rails app with Auth without using [`Devise`](https://github.com/plataformatec/devise)
+- Be able to create a Rails app with Auth and a React front end
   - Not from memory, but from following along with an example
 
   
@@ -15,6 +13,7 @@
 *Before this lesson, students should:*
 
 - Be able to make a Rails app without auth
+- Have practice creating app with auth in another framework (such as Express)
 
 ---
 
