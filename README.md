@@ -566,36 +566,33 @@ end
 
 ### Test Routes
 
+##### Create User
+
 Let’s test our user create route with Insomnia. We only need to set the body with our new account details:
 
-![](assets/Screen-Shot-Create.png)
+![User Create](assets/Screen-Shot-Create.png)
 
+Alternatively, use cURL to post the credentials to `localhost:3000/users`. Here is how the request should look:
 
----
+```
+$ curl -H "Content-Type: application/json" -X POST -d '{"user": {"password": "brooklyn", "password_confirmation": "brooklyn", "username": "rossinator", "email": "ross.geller@hotmail.com"}}' http://localhost:3000/users
+```
+##### Login User
 
-## LAB
+Now test the user login route. Your token will now be returned:
 
-Let's continue building this thing:
+![User Auth Login](assets/Screen-Shot-Auth-Login.png)
 
-> Note: Following these steps on your own may require brain-power. You cannot just copy and paste.
+Again, using cURL:
 
-* `rails new MyFirstRailsAuthApp --database=postgresql`
-* Create a `User` model: `rails g model User`
-  - `email` (with index), `session_token` (with index), `password_digest`
-* `rails db:create`, `rails db:migrate`
-* Add `User` `email` and `password` validations
-* Define `sign_in`/`sign_out`, `current_user` methods
-* Define `ensure_signed_in`/`ensure_signed_out` methods
-* Create a controller: `rails g controller users`
-  - `index` (new), `new` (view), `create`, `show` (view)
-  - `resources :users, only: [:new, :create, :index, :show]`
-* Render `flash` messages in `application.html.erb`
-* Create a controller: `rails g controller sessions`
-  - `new` (view), `create`, `destroy`
-  - `resource :session, only: [:new, :create, :destroy]`
-* Create a `Post` model: `rails g model Post`
-  - `name`, `description`, `user_id` (with index)
-* Add `Post`-`User` associations
-* `rails g controller posts`
-  - `new`, `create`, `index`, `show`, `destroy`, `edit`, `update`
-  - `resources :posts`
+```
+$ curl -H "Content-Type: application/json" -X POST -d '{"username": "rossinator","password": "brooklyn"}' http://localhost:3000/auth/login
+```
+
+##### GET All Users
+
+Test the GET `/users` route:
+
+![](assets/Screen-Shot-Auth-All-Users.png)
+
+> Note: You must include the authorization token in the Header.
