@@ -24,15 +24,13 @@ The point of authentication is to ensure that the user is who they say they are.
 
 User Authentication allows us to restrict access to a portion of the application so that only users who log in with a valid username and password can have access.
 
-### Create a new Rails application
+### Create a new Rails API
 
 To create a new Rails app, we use the `rails new` command. This sets us up with our skeleton Rails app. In the Terminal, in the directory where you want to create a project, generate a new Rails project and cd into it:
 
 ```
-$ rails new my-rails-auth-project -T --database=postgresql
+$ rails new my-rails-auth-project --api --database=postgresql -JSTCMG --skip-turbolinks --skip-coffee --skip-active-storage --skip-bootsnap
 $ cd my-rails-auth-project
-    
-# -T means without Test::Unit (maybe you prefer to use rspec instead)
 ```
 
 ### Setup the database
@@ -48,7 +46,7 @@ Created database 'my-rails-auth-project_development'
 Created database 'my-rails-auth-project_test'
 ```
 
-Open the project in the current directory using your text editor (in this case it's Sublime Text):
+Open the project in the current directory using your text editor:
 
 ```
 $ subl .
@@ -62,10 +60,10 @@ $ rails server
 ## USERS
 
 ### Generate User model 
-Create a User model with `name` and `email` attributes as well as the optional string parameters. **Remember:** in Rails, models are singlular and capitalized. Controllers and routes are plural and lowercase.
+Create a User model with `username` and `email` attributes as well as the optional string parameters.
 
 ```
-$ rails g model User name:string email:string
+$ rails g model User username:string email:string
 
 # run the migration to update the database with this change
 $ rails db:migrate
@@ -77,7 +75,7 @@ Before running the migration, check the `db/migrate/[timestamp]_create_users.rb`
 class CreateUsers < ActiveRecord::Migration[5.2]
   def change
     create_table :users do |t|
-      t.string :name
+      t.string :username
       t.string :email
 
       t.timestamps
@@ -99,7 +97,7 @@ while your schema should look like the following:
 
 ```
   create_table "users", force: :cascade do |t|
-    t.string "name"
+    t.string "username"
     t.string "email"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -121,23 +119,23 @@ $ rails c --sandbox
 >> User.new
 => #<User id: nil, name: nil, email: nil, created_at: nil, updated_at: nil>
 
->> user = User.new(name: 'Celeste Layne', email: 'celeste.layne@hotmail.com')
-=> #<User id: nil, name: "Celeste Layne", email: "celeste.layne@hotmail.com", created_at: nil, updated_at: nil>
+>> user = User.new(username: 'clayne', email: 'celeste.layne@hotmail.com')
+=> #<User id: nil, username: "clayne", email: "celeste.layne@hotmail.com", created_at: nil, updated_at: nil>
 
 >> user.valid?
 => true
 
 >> user.save
    (14.2ms)  SAVEPOINT active_record_1
-  User Create (49.3ms)  INSERT INTO "users" ("name", "email", "created_at", "updated_at") VALUES ($1, $2, $3, $4) RETURNING "id"  [["name", "Celeste Layne"], ["email", "celeste.layne@hotmail.com"], ["created_at", "2019-02-21 22:03:32.018011"], ["updated_at", "2019-02-21 22:03:32.018011"]]
+  User Create (49.3ms)  INSERT INTO "users" ("username", "email", "created_at", "updated_at") VALUES ($1, $2, $3, $4) RETURNING "id"  [["username", "clayne"], ["email", "celeste.layne@hotmail.com"], ["created_at", "2019-02-21 22:03:32.018011"], ["updated_at", "2019-02-21 22:03:32.018011"]]
    (9.8ms)  RELEASE SAVEPOINT active_record_1
 => true
 
 >> user
-=> #<User id: 1, name: "Celeste Layne", email: "celeste.layne@hotmail.com", created_at: "2019-02-21 22:03:32", updated_at: "2019-02-21 22:03:32">
+=> #<User id: 1, username: "cayne", email: "celeste.layne@hotmail.com", created_at: "2019-02-21 22:03:32", updated_at: "2019-02-21 22:03:32">
 
->> user.name
-=> "Celeste Layne"
+>> user.username
+=> "clayne"
 
 >> user.email
 => "celeste.layne@hotmail.com"
@@ -168,21 +166,21 @@ _Note:_ The `id` has been assigned a value of 1; while `updated_at` / `created_a
 Another way to update records is using `update_attributes`:
 
 ```
->> user.update_attributes(name: "Dennis Layne", email: "dennis@trinimail.com")
+>> user.update_attributes(username: "dayne", email: "dennis@trinimail.com")
    (1.8ms)  SAVEPOINT active_record_1
-  User Update (8.3ms)  UPDATE "users" SET "name" = $1, "email" = $2, "updated_at" = $3 WHERE "users"."id" = $4  [["name", "Dennis Layne"], ["email", "dennis@trinimail.com"], ["updated_at", "2019-02-21 22:29:58.364706"], ["id", 1]]
+  User Update (8.3ms)  UPDATE "users" SET "username" = $1, "email" = $2, "updated_at" = $3 WHERE "users"."id" = $4  [["username", "dlayne"], ["email", "dennis@trinimail.com"], ["updated_at", "2019-02-21 22:29:58.364706"], ["id", 1]]
    (0.4ms)  RELEASE SAVEPOINT active_record_1
 => true
 
->> user.name
-=> "Dennis Layne"
+>> user.username
+=> "dlayne"
 ```
 
 ### Validations
 
 At this point, any string we decide to type into the name and email fields is valid. Active Record allows us to impose constraints using validations. Some of the most common validations include: _presence, length, and uniqueness_.
 
-###### Validating the presence of a name and email attribute.
+###### Validating the presence of a name and email attribute
 Presence verifies that a given attribute (in this case, name and email) is present using the validates method with argument presence: true.
 
 ```
@@ -191,6 +189,18 @@ class User < ApplicationRecord
     validates :email, presence: true
 end
 ```
+###### Validating email format
+
+The standard Ruby library has built in regular expression to validate emails. We do this using [URI](https://www.rubydoc.info/stdlib/uri/URI/MailTo) which stands for Uniform Resoure Identifers. URI is a baked in module in Rails.
+
+```
+class User < ApplicationRecord
+    ...
+    validates :email, presence: true
+    validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, message: "only allows valid emails" }
+end
+```
+
 ###### Validating length
 Length verifies that a name field with a maximum of 50 characters will not validate names that are 51 characters in length.
 
@@ -209,11 +219,11 @@ class User < ApplicationRecord
     validates :email, presence: true, length: { maximum: 255 }, uniqueness: true
 end
 ```
-_Note:_ Active Record uniqueness validation does not guarantee uniqueness at the database level
+_Note:_ Active Record uniqueness validation does not guarantee uniqueness at the database level, so it may happen that two different database connections create two records with the same value for a column that you intend to be unique.
 
 The solution is to enforce uniqueness at the database level as well as at the model level. Our method is to create a database index on the email column, and then require that the index be unique.
 
-###### Generate index on name [or email]
+###### Generate index on username [or email]
 
 ```
 $ rails generate migration add_index_to_users_email
@@ -222,6 +232,7 @@ The migration will look like the following:
 
 ```
 # db/migrate/[timestamp]_add_index_to_users_email.rb
+
 class AddIndexToUsersEmail < ActiveRecord::Migration
   def change
   	# use add_index method to add an index on the email column of the users table
@@ -310,11 +321,8 @@ end
 Now in our rails console, we can set a password and check if it matches:
 
 ```
->> user.password = 'epiphany'
-=> "epiphany"
-
->> user.is_password?('epiphany')
-=> true
+>> user.password = 'jeopardy'
+=> "jeopardy"
 
 >> user.save
    (32.3ms)  SAVEPOINT active_record_1
@@ -322,25 +330,26 @@ Now in our rails console, we can set a password and check if it matches:
   User Create (56.7ms)  INSERT INTO "users" ("name", "email", "created_at", "updated_at", "password_digest") VALUES ($1, $2, $3, $4, $5) RETURNING "id"  [["name", "Celeste Layne"], ["email", "celeste.layne@hotmail.com"], ["created_at", "2019-02-21 23:04:10.621861"], ["updated_at", "2019-02-21 23:04:10.621861"], ["password_digest", "$2a$10$UZoyMjCRLI84VJe2XsAX3.wA7xa2xQMFyTfgcqzYO0a1OaNHso8XW"]]
    (0.6ms)  RELEASE SAVEPOINT active_record_1
 ```
-_Note:_ Saving the record returns the encrypted password digest and NOT the password ('epiphany')
+_Note:_ Saving the record returns the encrypted password digest and NOT the password ('jeopardy')
 
 Authenticate a user given the name and password:
 
 ```
 class User < ApplicationRecord
+    has_secure_password
+    
     validates :name, presence: true, length: { maximum: 50 }
     validates :email, presence: true, length: { maximum: 255 }, uniqueness: true
+    validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }
     
-    has_secure_password
-    validates :password, presence: true, length: { minimum: 6 }
-    
-	def self.find_from_credentials(email, password)
-		user = find_by(email: email)
-		return nil unless user
-		user if BCrypt::Password.new(user.password_digest).is_password?(password)
-	end
+    validates :password, 
+    	presence: true, 
+    	length: { minimum: 6 },
+    	if: -> { new_record? || !password.nil? }
 end
 ```
+Active Record uses the `new_record?` instance method to determine whether an object is already in the database or not. As implied by the `?`, it returns true or false. This validation says that for every new entry, the password must be a minimum of 6 characters long.
+
 Now, find the user record by the email address:
 
 ```
@@ -348,21 +357,54 @@ Now, find the user record by the email address:
 => #<User id: 3, name: "Celeste Layne", email: "celeste.layne@hotmail.com", created_at: "2019-02-22 00:09:44", updated_at: "2019-02-22 00:09:44", password_digest: "$2a$10$oulAW4mTmy4sOmLaKRdsz.rglfMyQBrUeSq4C1ZBwU5...">
 ```
 
-Next, test an email address and password that works and one that doesn't:
+---
+
+### JSON Web Token
+
+For tracking the logged in users on our front end, we will be sending a JWT (JSON Web Token). First, we implement that on the backend by adding the gem to our Gemfile:
 
 ```
-# this pair works
->> User.find_from_credentials('celeste.layne@hotmail.com', 'epiphany')
-=> #<User id: 4, name: "Celeste Layne", email: "celeste.layne@hotmail.com", created_at: "2019-02-22 00:52:05", updated_at: "2019-02-22 00:52:05", password_digest: "$2a$10$ivsPxtrCMdvUxxFRik9YbexHHcHdNNPxsYB2gohzduH...">
-
-# this email is incorrect
->> User.find_from_credentials('celeste.layne@gmail.com', 'epiphany')
-=> nil
-
-# this password is incorrect
->> User.find_from_credentials('celeste.layne@hotmail.com', 'bananas')
-=> nil
+gem 'jwt'
 ```
+
+Then, run `bundle install`.
+
+For the JWT gem package, we're going to make a custom class with some methods to help us out. This will help keep our controllers small and organized. In our `/lib` directory, lets make a new file called `json_web_token.rb`.
+
+##### JWT Helper Methods
+
+Create a `JsonWebToken` class where we will add two methods for encoding and decoding tokens:
+
+```
+class JsonWebToken
+  SECRET_KEY = Rails.application.secrets.secret_key_base.to_s
+
+  def self.encode(payload, exp = 24.hours.from_now)
+    payload[:exp] = exp.to_i
+    JWT.encode(payload, SECRET_KEY)
+  end
+
+  def self.decode(token)
+    decoded = JWT.decode(token, SECRET_KEY)[0]
+    HashWithIndifferentAccess.new decoded
+  end
+end
+```
+The token is encoded and decoded with the built in Rails secret key. It also requires an expiration time, which we have set for 24 hours.
+
+In order for us to have access to this class, we need to add the `/lib` directory to be loaded when we run our API server. To do this, we can add the following line of code to `/config/application.rb` inside the Application class:
+
+```
+module MyRailsAuthApp
+  class Application < Rails::Application
+  ...
+	config.autoload_paths << Rails.root.join('lib')
+  ...
+  end
+end
+```
+
+Now, we are all set to use JWT with our custom helper methods.
 
 ---
 
@@ -370,7 +412,9 @@ Next, test an email address and password that works and one that doesn't:
 In the `config/routes.rb` file, add the following resources:
 
 ```
-$ resources :users, only: [:new, :create, :index, :show]
+Rails.application.routes.draw do
+	resources :users, only: [:new, :create, :index, :show]
+end
 ```
 then, run `rails routes` in Terminal:
 
@@ -383,47 +427,111 @@ then, run `rails routes` in Terminal:
 
 ---
 
+### Authentication
+
+#### Custom Controller
+Our `UsersController` right now does not have any way to login or authenticate a user nor does it return a JSON web token. Additionally we do not have an endpoint in our routes for this either. We can fix this be creating a new controller for authentication.
+
+```
+$ rails g controller Authentication
+```
+
+In our authetication controller, we need to define a method that will verify login credentials and return a JSON web token:
+
+```
+class AuthenticationController < ApplicationController
+
+  # POST /auth/login
+  
+  def login
+    @user = User.find_by_username(params[:username])
+    if @user.authenticate(params[:password]) #authenticate method provided by Bcrypt and 'has_secure_password'
+      token = JsonWebToken.encode(user_id: @user.id, username: @user.username)
+      render json: { token: token }, status: :ok
+    else
+      render json: { error: 'unauthorized' }, status: :unauthorized
+    end
+  end
+
+  private
+
+  def login_params
+    params.permit(:username, :password)
+  end
+end
+```
+Here, we first find the user based on the provided username. We then use the Bcrypt helper method .authenticate to verify that the provided password matches the encoded password_digest from our database for our user.
+
+We then use our `JsonWebToken.encode` method to create a token with the user's id and username inside the token.
+
+### Login Route
+
+```
+Rails.application.routes.draw do
+	...
+	post '/auth/login', to: 'authentication#login'
+end
+```
+
+then, run `rails routes` in Terminal:
+
+| Prefix    | Verb   | URI Pattern | Controller#Action | Used for |
+|-----------|--------|-------------|-------------------|------------------------------------|
+| auth_login     | POST    | /auth/login      | authentication#login       | Generate token
+| users     | GET    | /users      | users#index       | display a list of all users
+|           | POST   | /users      | users#create      | create a new user, '/users'
+| user      | GET    | /users/{username}  | users#show        | display a specific user
+
+---
+
+### Application Controller
+
+So now we can create new Users. We can also authenticate a login attempt. We also want to have a way to authenticate requests from users that have logged in. We can do this by creating a method that authorizes a request based on the authorization header. Since we want this method to be available for all controllers, we can define this method in the `ApplicationController`. Since all other controller inherit from `ApplicationController` any method defined there will be available to us in the other controllers.
+
+```
+class ApplicationController < ActionController::API
+  ...
+  def authorize_request
+    header = request.headers['Authorization']
+    header = header.split(' ').last if header
+    begin
+      @decoded = JsonWebToken.decode(header)
+      @current_user = User.find(@decoded[:user_id])
+    rescue ActiveRecord::RecordNotFound => e
+      render json: { errors: e.message }, status: :unauthorized
+    rescue JWT::DecodeError => e
+      render json: { errors: e.message }, status: :unauthorized
+    end
+  end
+  ...
+end
+```
+Our `authorize_request` method first grabs the auth header. It then splits out the token from the header. Once we have the token, we can use our `JsonWebToken.decode` helper method to pull the user info from the token. Then we can set an instance variable `@current_user` using the `user_id` from the token data. Now we have the user data preset in any controller that we call the `authorize_request` method. If the user can't be found or the token isn't valid, we raise an unauthorized error.
+
+We can test this out by adding a before action to our `UsersController`:
+
+```
+before_action :authorize_request, except: :create
+```
+
+We can also add it to our PostsController:
+
+```
+before_action :authorize_request, except: %i[index show]
+```
+
+Now we've done it! We have a fully built out auth in our app. We have a lot of moving parts here and it can be difficult to keep track of everything. That's why we don't expect you to know this all by heart but it's important to understand whats going on.
+
+---
+
 ### Create users controller
 Create a users controller:
 
 ```
-$ rails g controller users new create
-```
-and add the new (to render the signup form) and create (for receiving the form and creating a user with the forms' parameters) actions:
-
-```
-# app/controllers/users_controller.rb
-
-class UsersController < ApplicationController
-
-    def new
-    end
-
-    def create
-    end  
-
-end
+$ rails g controller users 
 ```
 
-Now create the view where we place the signup form. _Remember:_ view files are placed inside a folder with the same name of the controller and named for the actions they render.
-
-```ruby
-# app/views/users/new.html.erb
-
-<h1>Sign Up / Register</h1>
-
-<%= form_for :user do |f| %>
-
-  Name: <%= f.text_field :name %>
-  Email: <%= f.text_field :email %>
-  Password: <%= f.password_field :password %>
-  Password Confirmation: <%= f.password_field :password_confirmation %>
-  <%= f.submit "Submit" %>
-
-<% end %>
-```
-
-Add logic to the create action and add the private user_params method to sanitize the input from the form.
+Add logic to the create action and add the private `user_params` method to sanitize the input from the form.
 
 ```ruby
 # app/controllers/users_controller.rb
@@ -432,17 +540,17 @@ class UsersController < ApplicationController
 
     def new
        @user = User.new
-    	render :new
+    	render json: @user, status: :ok
     end
 
     def create
 		@user = User.new(user_params)
 		if user.save
 			sign_in(@user)
-	      flash[:notice] = 'You are signed in!'
-	      redirect_to users_path
+        	render json: @user, status: :created
 		else
-			redirect_to '/users/new'
+			render json: { errors: @user.errors.full_messages },
+             status: :unprocessable_entity
 		end
     end  
     
@@ -455,330 +563,15 @@ class UsersController < ApplicationController
 end
 ```
 ---
-## SESSIONS
 
-With Rails the user can easily get access to their session with the [session object](). We can reference session inside of any controller. It behaves like a hash which means we can easily set and retrieve serialized data on it.
+### Test Routes
 
-### Sign-in
+Let’s test our user create route with Insomnia. We only need to set the body with our new account details:
 
-Let's generate a migration to add the `session_token` column to the users table:
+![](assets/Screen-Shot-Create.png)
 
-```
-$ rails generate migration add_column_to_users session_token:string
-```
-The migration will look like the following:
-
-```
-# db/migrate/[timestamp]_add_column_to_users.rb
-class AddColumnToUsers < ActiveRecord::Migration[5.2]
-  def change
-    add_column :users, :session_token, :string
-  end
-end
-```
-To apply it, we just migrate the database:
-
-```
-$ rails db:migrate
-```
-
-Then, add an index to the session_token:
-
-```
-rails generate migration add_index_to_users session_token:string
-```
-The migration will look like the following:
-
-```
-class AddIndexToUsers < ActiveRecord::Migration[5.2]
-  def change
-    add_index :users, :session_token
-  end
-end
-```
-To apply it, we just migrate the database:
-
-```
-$ rails db:migrate
-```
-
-Let's define ApplicationController#sign_in so that we can sign in a user from any where in the app. Assuming we have a session_token column on the users table, let's set a token on the session to be a random string and set that same string as the session_token on the user.
-
-```ruby
-class ApplicationController < ActionController::Base
-  # ...
-  def sign_in(user)
-    token = SecureRandom.urlsafe_base64 # random 22-char string
-    session[:session_token] = token
-    user.update_attribute(:session_token, token)
-  end
-```
-
-Let's test that token in the console:
-
-```
-$ rails c
-
->> SecureRandom.urlsafe_base64
-=> "q5lt38hQDc_959PVoo6b7A"
-```
-
-### Create Sessions Resource
-In the `config/routes.rb` file, lets add actions for signing in and logging out:
-
-```
-get    '/login',   to: 'sessions#new'
-post   '/login',   to: 'sessions#create'
-delete '/logout',  to: 'sessions#destroy'
-```
-then, run `rails routes` in Terminal:
-
-| Prefix    | Verb   | URI Pattern | Controller#Action |
-|-----------|--------|-------------|-------------------|
-|           | POST   | /login      | sessions#create   |
-| login_path  | GET    | /login  | sessions#new        |
-| logout_path      | DELETE    | /logout  | sessions#destroy     | '/logout'
 
 ---
-
-### Create sessions controller
-
-Create a sessions controller. This is where we create (login) and destroy (logout) sessions.
-
-```
-$ rails g controller sessions new create
-```
-
-###### Log In Form
-
-The main difference between the session form and the signup form is that we have no Session model, therefore there is no @user variable to add to the form. Instead, we include the name of the resource (:session) and its corresponding URL (new_session_path) which was defined in `config/routes.rb`:
-
-```
-<h2> Log In </h2>
-
-<%= form_for (:session, url: login_path) do |form| %>
-  <%= form.text_field :email, placeholder: 'your email', required: true %>
-  <%= form.password_field :password, placeholder: 'your password', required: true %>
-
-  <%= submit_tag 'Log in' %>
-<% end %>
-
-<p>New user? <%= link_to "Sign up now!", new_user_path %></p>
-
-```
-This would be a good place to add a link back to the signup (registration) page.
-
-###### Cross-Site Request Forgery (Forms)
-
-CSRF is a type of attack on a website that exploits a users logged in state to perform actions that normally require authentication. There are a couple preventativem easures you can take to prevent CSRF: requiring user authentication, regularly logging out inactive users. 
-
-Rails also has another tool against CSRF, authenticity tokens. It adds a hidden field to every web form that it generates. The value of that hidden field is a unique token generated by the application and stored in the user's session file. When the form is submitted, Rails can compare the two values.
-
-Luckily, as a Rails developer you basically get CSRF protection for free. Just include this line in `application_controller.rb`:
-
-```
-protect_from_forgery with: :exception
-```
-If a form come in and does not have a matching authenticity token stored in session, it will create an error, that's what the exception is. Exception is another word for error in Ruby.
-
-###### Session Actions
-
-Now, inside the SessionsController we will define the `new` and `create` methods:
-
-```
-# app/controllers/sessions_controller.rb
-
-class SessionsController < ApplicationController
-
-	def new
-		@user = User.new
-   end
-
-   def create
-		user = params[:user][:email]
-		user = params[:user][:password]
-		
-		# using the find_from_credentials method from the User model
-		user = User.find_from_credentials(email, password)
-		
-		if user
-			sign_in(user)
-			flash[:notice] = "Hello, #{email}! You are now signed in."
-			redirect_to '/'
-		else
-			flash[:error] = "email or password incorrect"
-			@user = User.new(email: email)
-			render login_path
-		end
-   end  
-
-end
-```
-
-### Finding the current user
-
-We define the `current user` method in the ApplicationController. We should probably **cache** current_user so that we don't have to do a query every time we call current_user.
-
-```
-class ApplicationController < ActionController::Base
-  ...
-  def current_user
-  	 # if @current_user is nil then call find_current_user method
-  	 # and assign it to the @current_user
-  	 # else don't have to call the find_current_user method 
-    @current_user ||= find_current_user
-  end
-  
-  def find_current_user
-    token = session[:session_token]
-    token && User.find_by(session_token: token)
-  end
-```
-
-### Ensuring user is signed in
-If we want to ensure a user is signed in before visiting a page we can define a method in our `ApplicationController`.
-
-```
-def ensure_signed_in
-    return if current_user
-    flash[:error] = 'you must be signed in to see this'
-    redirect_to :root
-end
-```
-Then, in the `UsersController ` we can call our method with [before_action](https://apidock.com/rails/v4.0.2/AbstractController/Callbacks/ClassMethods/before_action):
-
-```
-class UsersController < ApplicationController
-
-  before_action :ensure_signed_in, only: [:show, :index]
-  
-  ...
-end
-```
-Now the client will be redirected if they are not signed in when hitting any route inside the `UsersController`.
-
-### Signing out
-
-When we are ready to sign out a user, we can simply delete the token from the session and remove the token from the database. So far, we've written a new action for a login page and create action to complete the login. Now, we'll write a destroy action to delete sessions.
-
-```
-class ApplicationController < ActionController::Base
-  ...
-  def sign_out
-    session.delete(:session_token)
-    current_user.update_attribute(:session_token, nil)
-  end
-```
-
-To sign out we can add a log-out button to the app:
-
-```
-<%= button_to 'Log out', session_path, method: :delete %>
-```
-
-In the SessionsController, define the destroy action and call the sign_out method:
-
-```
-  def destroy
-  	 # call the sign_out method defined in the ApplicationController
-    sign_out
-    flash[:notice] = 'You signed out!'
-    # redirects to the login form
-    redirect_to login_path
-  end
-```
-
-### Ensuring user is logged out
-
-If there are routes you need to be signed out in order to visit:
-
-```
-  def ensure_signed_out
-    return unless current_user
-    flash[:error] = 'you are already signed in'
-    redirect_to users_path
-  end
-```
-
-For example, let's assume you need to be signed out to create a new user. We can hit our ensure_signed_out method:
-
-```
-class UsersController < ApplicationController
-
-  before_action :ensure_signed_out, only: [:new, :create]
-
-  ...
-
-```
-
-### Using current_user
-
-Always assume you will have malicious users. Just because you don't have a link to something doesn't mean a user can't hit that action. Keep this in mind when writing your controllers.
-
-For example, assume a User has_many :posts and a Post belongs_to :user. If we only want to show a Post to the user it belongs to, our controller should not look like this:
-
-```
-class PostsController < ApplicationController
-  ...
-  def show
-    @post = Post.find(params[:id])
-  end
-```
-
-This would allow any user to see any Post. Instead, do something like this:
-
-```
-class PostsController < ApplicationController
-  ...
-  def show
-    @post = current_user.posts.find(params[:id])
-  end
-```
-
-This will ensure you are only retrieving a Post that belongs to the current_user
-
-### Using current_user in views
-
-If you want to reference `current_user` in the views, use the [`helper_method`](https://apidock.com/rails/ActionController/Helpers/ClassMethods/helper_method) method:
-
-```erb
-class ApplicationController < ActionController::Base
-  ...
-  helper_method :current_user
-  ...
-```
-
-Then in a view you can do something like:
-
-```erb
-<% if current_user %>
-  Hi, <%= current_user.name %>
-<% end %>
-```
-
-## Important routes
-
-These are important auth-related routes
-
-| Route | Method | Controller | Use |
-|---|---|---|---|
-| `/session/new` | `GET` | SessionsController | Renders log in form |
-| `/session` | `POST` | SessionsController | Logs in user ("creates" a session)|
-| `/session` | `DELETE` | SessionsController | Logs out user ("deletes" a session) |
-| `/users/new` | `GET` | UsersController | Renders new user form |
-| `/users` | `POST` | UsersController | Creates a user |
-
-## Important methods
-
-All of these methods are defined in `ApplicationController` (thus accessible by any controller)
-
-| Method | Use |
-| --- | --- |
-| `current_user` | Current signed in user. `nil` if not signed in |
-| `sign_in(user)` | Signs in a given `user` (adds session token) |
-| `sign_out` | Signs out `current_user` (removes session token) |
-| `ensure_signed_in` | Redirect unless user is signed in |
-| `ensure_signed_out` | Redirect unless user is signed out |
 
 ## LAB
 
